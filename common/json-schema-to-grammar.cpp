@@ -15,6 +15,19 @@
 using json = nlohmann::ordered_json;
 
 static std::string build_repetition(const std::string & item_rule, int min_items, int max_items, const std::string & separator_rule = "") {
+    // Tool-calling schemas often carry extreme bounds (e.g. maxLength: 2000 for plugin tools,
+    // maxLength: 1048576 for MCP servers). Every repetition is expanded into grammar rules and
+    // llama-grammar rejects ranges reaching MAX_REPETITION_THRESHOLD with "failed to parse
+    // grammar", so a single such tool made every tool-calling request fail. Treat bounds above
+    // a sane threshold as unbounded: the generated JSON is still constrained client-side.
+    static constexpr int MAX_SAFE_REPETITION = 500;
+    if (min_items > MAX_SAFE_REPETITION) {
+        min_items = MAX_SAFE_REPETITION;
+    }
+    if (max_items > MAX_SAFE_REPETITION) {
+        max_items = std::numeric_limits<int>::max();
+    }
+
     auto has_max = max_items != std::numeric_limits<int>::max();
 
     if (max_items == 0) {
